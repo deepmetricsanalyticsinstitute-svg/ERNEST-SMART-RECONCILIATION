@@ -1,0 +1,5 @@
+{
+  "name": "ERNEST SMART RECONCILIATION",
+  "description": "An intelligent automated reconciliation tool that processes PDF bank statements and CSV general ledgers to identify matches and discrepancies instantly.",
+  "requestFramePermissions": []
+}
