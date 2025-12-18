@@ -1,14 +1,16 @@
+
 import React, { useRef, useState } from 'react';
 import { Icons } from './Icons';
 
 interface FileUploadProps {
   label: string;
+  description: string;
   accept: string;
   onFileSelect: (file: File, content: string, type: 'pdf' | 'csv') => void;
   fileData: { file: File; type: 'pdf' | 'csv' } | null;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ label, accept, onFileSelect, fileData }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({ label, description, accept, onFileSelect, fileData }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -55,16 +57,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({ label, accept, onFileSel
   return (
     <div className="flex flex-col items-center w-full">
       <h3 className="text-white font-bold text-lg mb-1">{label}</h3>
-      <p className="text-slate-500 text-[10px] mb-5 uppercase tracking-widest font-semibold">
-        {label === 'Bank Statement' ? 'Upload PDF or CSV statement.' : 'Upload Excel, CSV or PDF ledger.'}
+      <p className="text-slate-400 text-xs mb-6 text-center">
+        {description}
       </p>
       
       <div
-        className={`relative w-full border border-dashed rounded-xl p-10 transition-all duration-300 flex flex-col items-center justify-center text-center group cursor-pointer
+        className={`relative w-full border-2 border-dashed rounded-xl p-10 transition-all duration-300 flex flex-col items-center justify-center text-center group cursor-pointer h-64
           ${isDragging 
-            ? 'border-indigo-500 bg-indigo-500/5' 
-            : 'border-slate-700/60 hover:border-slate-500 bg-slate-800/20 hover:bg-slate-800/40'}
-          ${fileData ? 'border-indigo-500/40 bg-indigo-500/5' : ''}
+            ? 'border-indigo-500 bg-indigo-500/10' 
+            : 'border-slate-800 bg-slate-900/40 hover:bg-slate-800/60 hover:border-slate-700'}
+          ${fileData ? 'border-indigo-500/50 bg-indigo-500/5' : ''}
         `}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -80,18 +82,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({ label, accept, onFileSel
         />
         
         <div className={`mb-4 transition-transform group-hover:scale-110 duration-300 ${fileData ? 'text-indigo-400' : 'text-slate-500'}`}>
-          <Icons.Upload size={36} strokeWidth={1.5} />
+          <Icons.Upload size={48} strokeWidth={1} />
         </div>
         
         {fileData ? (
           <div className="animate-in fade-in zoom-in duration-300">
-            <span className="text-indigo-400 text-sm font-bold block truncate max-w-[200px]">{fileData.file.name}</span>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest mt-1 block">Click to change</span>
+            <span className="text-white text-sm font-bold block truncate max-w-[200px]">{fileData.file.name}</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest mt-2 block font-bold">File Selected</span>
           </div>
         ) : (
           <div>
             <span className="text-slate-200 font-bold text-sm tracking-wide">Choose File</span>
-            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-semibold">
+            <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest font-bold">
               Drag and drop or click to browse
             </p>
           </div>

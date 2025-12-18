@@ -1,3 +1,6 @@
+
+export type ProcessingMode = 'speed' | 'accuracy';
+
 export interface Transaction {
   date: string;
   description: string;
@@ -12,8 +15,9 @@ export interface ReconciledMatch {
   amount: number;
   bankRef?: string;
   ledgerRef?: string;
-  matchConfidence: number;
+  matchConfidence: number; // 0 to 100
   notes: string;
+  reasoning?: string; // AI's explanation for the match
 }
 
 export interface ReconciliationSummary {
@@ -26,6 +30,7 @@ export interface ReconciliationSummary {
   unmatchedLedgerAmount: number;
   bankStatementBalance?: number;
   ledgerBalance?: number;
+  auditScore: number; // 0 to 100 rating of reconciliation completeness
 }
 
 export interface ReconciliationResult {

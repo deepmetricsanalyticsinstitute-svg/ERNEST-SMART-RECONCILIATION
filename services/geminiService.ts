@@ -1,14 +1,27 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { ReconciliationResult, FileData } from "../types";
+import { ReconciliationResult, FileData, ProcessingMode } from "../types";
 
 const SYSTEM_INSTRUCTION = `
-RECONCILIATION ENGINE: Match Bank Statement transactions against General Ledger entries.
-- Match by Amount (within 0.01 tolerance), Date (within +/- 5 days), and Description similarity.
-- Return results in JSON format only.
-- Use GHc (GHS) currency symbols.
-- Normalize all dates to YYYY-MM-DD.
-- Identical entries should be marked as 'matches'. 
-- Entries present in only one document should be marked as 'unmatched'.
+You are a World-Class Financial Auditor specializing in Bank Reconciliations.
+Task: Match Bank Statement (PDF or Text) against General Ledger (CSV or Text).
+
+AUDIT PROTOCOL:
+1. MATCHING LOGIC:
+   - Level 1 (Exact): Identical Date, Amount (within 0.01), and Description keywords.
+   - Level 2 (Fuzzy): Amount matches exactly, but Date is +/- 7 days apart. Use description similarity (e.g., 'Amazon' vs 'AMZN MKT').
+   - Level 3 (Grouped): Check if multiple Ledger entries sum up to one Bank entry or vice versa.
+   - Level 4 (References): Prioritize matching by check numbers or reference IDs.
+
+2. DISCREPANCY ANALYSIS:
+   - Identify timing differences, bank fees, interest not yet recorded, or errors.
+
+3. OUTPUT FORMAT:
+   - Return strict JSON.
+   - Functional currency: GH¢ (GHS).
+   - Dates: YYYY-MM-DD.
+   - Provide 'matchConfidence' (0-100) and 'notes' for matches.
+   - Calculate 'auditScore' (0-100).
 `;
 
 const RESPONSE_SCHEMA = {
@@ -26,8 +39,9 @@ const RESPONSE_SCHEMA = {
         unmatchedLedgerAmount: { type: Type.NUMBER },
         bankStatementBalance: { type: Type.NUMBER },
         ledgerBalance: { type: Type.NUMBER },
+        auditScore: { type: Type.INTEGER },
       },
-      required: ["totalMatches", "totalUnmatchedBank", "totalUnmatchedLedger", "netDiscrepancy", "matchedAmount", "unmatchedBankAmount", "unmatchedLedgerAmount"],
+      required: ["totalMatches", "totalUnmatchedBank", "totalUnmatchedLedger", "netDiscrepancy", "matchedAmount", "unmatchedBankAmount", "unmatchedLedgerAmount", "auditScore"],
     },
     matches: {
       type: Type.ARRAY,
@@ -41,8 +55,9 @@ const RESPONSE_SCHEMA = {
           ledgerRef: { type: Type.STRING },
           matchConfidence: { type: Type.NUMBER },
           notes: { type: Type.STRING },
+          reasoning: { type: Type.STRING },
         },
-        required: ["date", "description", "amount"],
+        required: ["date", "description", "amount", "matchConfidence"],
       },
     },
     unmatchedBank: {
@@ -77,75 +92,57 @@ const RESPONSE_SCHEMA = {
 
 export const reconcileDocuments = async (
   bankFile: FileData,
-  ledgerFile: FileData
+  ledgerFile: FileData,
+  mode: ProcessingMode = 'accuracy'
 ): Promise<ReconciliationResult> => {
-  // Directly initialize the client using the mandatory environment variable access.
-  // This is the most robust way to ensure environment variables work on platforms like Netlify.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const parts: any[] = [];
-  
-  // Add Bank Statement data
-  parts.push({ text: "BANK_STATEMENT_DOCUMENT_DATA:" });
+  parts.push({ text: "### SOURCE: BANK STATEMENT DATA" });
   if (bankFile.type === 'pdf') {
     parts.push({ 
       inlineData: { 
         mimeType: "application/pdf", 
-        data: bankFile.content.replace(/^data:application\/pdf;base64,/, "") 
+        data: bankFile.content.split(',')[1] 
       } 
     });
   } else {
     parts.push({ text: bankFile.content });
   }
 
-  // Add Ledger data
-  parts.push({ text: "GENERAL_LEDGER_DOCUMENT_DATA:" });
+  parts.push({ text: "### SOURCE: GENERAL LEDGER DATA" });
   if (ledgerFile.type === 'pdf') {
-    parts.push({ 
-      inlineData: { 
-        mimeType: "application/pdf", 
-        data: ledgerFile.content.replace(/^data:application\/pdf;base64,/, "") 
-      } 
-    });
+     parts.push({ 
+        inlineData: { 
+          mimeType: "application/pdf", 
+          data: ledgerFile.content.split(',')[1] 
+        } 
+      });
   } else {
     parts.push({ text: ledgerFile.content });
   }
 
-  // Use 'gemini-3-flash-preview' - optimized for efficiency and widely available on free tiers.
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = mode === 'accuracy' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
   
   try {
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: [{ parts }],
+      contents: { parts },
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: RESPONSE_SCHEMA,
-        temperature: 0, // Zero temperature for precise financial logic
+        temperature: 0.1,
+        thinkingConfig: mode === 'accuracy' ? { thinkingBudget: 32768 } : undefined
       },
     });
 
     const resultText = response.text;
-    if (!resultText) {
-      throw new Error("The AI model returned an empty response. This might be due to a safety filter or temporary API issue.");
-    }
+    if (!resultText) throw new Error("The AI failed to generate a response.");
     
     return JSON.parse(resultText) as ReconciliationResult;
   } catch (err: any) {
-    console.error("Gemini API Invocation Error:", err);
-    
-    // Provide user-friendly errors for common failure modes on free tier / Netlify
-    if (err.message?.includes("429") || err.message?.includes("quota")) {
-      throw new Error("Free tier rate limit reached. Please wait a minute and try again.");
-    }
-    if (err.message?.includes("403") || err.message?.includes("key")) {
-      throw new Error("API Key Authentication failed. Please ensure your environment variable is correctly configured in Netlify.");
-    }
-    if (err.message?.includes("404")) {
-      throw new Error("The requested model was not found. Your API key might not have access to 'gemini-3-flash-preview' yet.");
-    }
-    
-    throw new Error(err.message || "An unexpected error occurred while reconciling your documents.");
+    console.error("Gemini Error:", err);
+    throw new Error(err.message || "Financial reconciliation failed.");
   }
 };
