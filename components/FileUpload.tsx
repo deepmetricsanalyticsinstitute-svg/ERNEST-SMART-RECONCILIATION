@@ -31,9 +31,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ label, accept, onFileSel
       onFileSelect(file, content, type);
     };
     if (isPdf) {
-      reader.readAsDataURL(file); // PDF needs base64
+      reader.readAsDataURL(file);
     } else {
-      reader.readAsText(file); // CSV is better as text for the prompt context
+      reader.readAsText(file);
     }
   };
 
@@ -53,48 +53,50 @@ export const FileUpload: React.FC<FileUploadProps> = ({ label, accept, onFileSel
   };
 
   return (
-    <div
-      className={`relative group cursor-pointer border-2 border-dashed rounded-xl p-8 transition-all duration-300 flex flex-col items-center justify-center text-center h-64
-        ${isDragging ? 'border-brand-500 bg-brand-50' : 'border-slate-300 hover:border-brand-400 hover:bg-slate-50'}
-        ${fileData ? 'bg-white border-brand-200 shadow-sm' : 'bg-white'}
-      `}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onClick={() => inputRef.current?.click()}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        className="hidden"
-        onChange={handleChange}
-      />
+    <div className="flex flex-col items-center w-full">
+      <h3 className="text-white font-bold text-lg mb-1">{label}</h3>
+      <p className="text-slate-500 text-[10px] mb-5 uppercase tracking-widest font-semibold">
+        {label === 'Bank Statement' ? 'Upload PDF or CSV statement.' : 'Upload Excel, CSV or PDF ledger.'}
+      </p>
       
-      {fileData ? (
-        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-          <div className={`p-4 rounded-full mb-3 ${fileData.type === 'pdf' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-            {fileData.type === 'pdf' ? <Icons.Pdf size={32} /> : <Icons.Csv size={32} />}
-          </div>
-          <h3 className="font-semibold text-slate-900 truncate max-w-[200px]">{fileData.file.name}</h3>
-          <p className="text-sm text-slate-500 mt-1">
-            {(fileData.file.size / 1024).toFixed(1)} KB
-          </p>
-          <div className="mt-4 px-3 py-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-full flex items-center gap-1">
-            <Icons.Check size={12} /> Ready
-          </div>
+      <div
+        className={`relative w-full border border-dashed rounded-xl p-10 transition-all duration-300 flex flex-col items-center justify-center text-center group cursor-pointer
+          ${isDragging 
+            ? 'border-indigo-500 bg-indigo-500/5' 
+            : 'border-slate-700/60 hover:border-slate-500 bg-slate-800/20 hover:bg-slate-800/40'}
+          ${fileData ? 'border-indigo-500/40 bg-indigo-500/5' : ''}
+        `}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => inputRef.current?.click()}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={handleChange}
+        />
+        
+        <div className={`mb-4 transition-transform group-hover:scale-110 duration-300 ${fileData ? 'text-indigo-400' : 'text-slate-500'}`}>
+          <Icons.Upload size={36} strokeWidth={1.5} />
         </div>
-      ) : (
-        <div className="flex flex-col items-center">
-           <div className={`p-4 rounded-full mb-3 bg-slate-100 text-slate-400 group-hover:scale-110 transition-transform duration-300`}>
-             <Icons.Upload size={32} />
-           </div>
-          <h3 className="font-semibold text-slate-700">{label}</h3>
-          <p className="text-sm text-slate-500 mt-2 max-w-[200px]">
-            Drag & drop or click to upload PDF or CSV
-          </p>
-        </div>
-      )}
+        
+        {fileData ? (
+          <div className="animate-in fade-in zoom-in duration-300">
+            <span className="text-indigo-400 text-sm font-bold block truncate max-w-[200px]">{fileData.file.name}</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest mt-1 block">Click to change</span>
+          </div>
+        ) : (
+          <div>
+            <span className="text-slate-200 font-bold text-sm tracking-wide">Choose File</span>
+            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-semibold">
+              Drag and drop or click to browse
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

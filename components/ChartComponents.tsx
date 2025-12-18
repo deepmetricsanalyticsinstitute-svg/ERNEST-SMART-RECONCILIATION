@@ -1,9 +1,8 @@
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, LabelList } from 'recharts';
 
-// Re-exporting for usage in other components
 export const Recharts = {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, LabelList
 };
 
 interface SimplePieChartProps {

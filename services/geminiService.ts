@@ -2,21 +2,10 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { ReconciliationResult, FileData } from "../types";
 
 const SYSTEM_INSTRUCTION = `
-You are a senior forensic accountant and reconciliation expert. 
-Your task is to analyze two financial documents: a Bank Statement and a General Ledger.
-The documents may be provided in either PDF or CSV format.
-You must extract all transactions from both sources and reconcile them.
-
-Reconciliation Rules:
-1. Matching Logic:
-   - Amounts must match exactly (or be within 0.01 tolerance).
-   - Dates should be close (within 5 days) as bank posting dates vary.
-   - Descriptions should be fuzzy matched (e.g., "AMZN MKTPLC" in bank vs "Amazon Purchase" in GL).
-2. Data Normalization:
-   - Normalize all dates to YYYY-MM-DD format.
-   - Ensure all amounts are numbers (floats). Credits/Debits should be handled to ensure directionality matches (usually outflows are negative, inflows positive, or vice versa, but be consistent).
-3. Output:
-   - Return a strictly structured JSON object containing the summary, matched pairs, and unmatched transactions for both sides.
+RECONCILIATION ENGINE: Match Bank vs Ledger.
+1. Match by Amount (0.01 tolerance), Date (+/- 5 days), fuzzy Description.
+2. Return JSON ONLY. GHc currency. Normalize dates YYYY-MM-DD.
+3. Be extremely fast: Skip long reasoning, provide direct results.
 `;
 
 const RESPONSE_SCHEMA: Schema = {
@@ -25,12 +14,17 @@ const RESPONSE_SCHEMA: Schema = {
     summary: {
       type: Type.OBJECT,
       properties: {
-        totalMatches: { type: Type.NUMBER },
-        totalUnmatchedBank: { type: Type.NUMBER },
-        totalUnmatchedLedger: { type: Type.NUMBER },
-        netDiscrepancy: { type: Type.NUMBER, description: "The sum of all unmatched amounts" },
+        totalMatches: { type: Type.INTEGER },
+        totalUnmatchedBank: { type: Type.INTEGER },
+        totalUnmatchedLedger: { type: Type.INTEGER },
+        netDiscrepancy: { type: Type.NUMBER },
+        matchedAmount: { type: Type.NUMBER },
+        unmatchedBankAmount: { type: Type.NUMBER },
+        unmatchedLedgerAmount: { type: Type.NUMBER },
+        bankStatementBalance: { type: Type.NUMBER },
+        ledgerBalance: { type: Type.NUMBER },
       },
-      required: ["totalMatches", "totalUnmatchedBank", "totalUnmatchedLedger", "netDiscrepancy"],
+      required: ["totalMatches", "totalUnmatchedBank", "totalUnmatchedLedger", "netDiscrepancy", "matchedAmount", "unmatchedBankAmount", "unmatchedLedgerAmount"],
     },
     matches: {
       type: Type.ARRAY,
@@ -38,12 +32,12 @@ const RESPONSE_SCHEMA: Schema = {
         type: Type.OBJECT,
         properties: {
           date: { type: Type.STRING },
-          description: { type: Type.STRING, description: "A combined or representative description" },
+          description: { type: Type.STRING },
           amount: { type: Type.NUMBER },
           bankRef: { type: Type.STRING },
           ledgerRef: { type: Type.STRING },
           matchConfidence: { type: Type.NUMBER },
-          notes: { type: Type.STRING, description: "Explanation of why this was matched if fuzzy" },
+          notes: { type: Type.STRING },
         },
         required: ["date", "description", "amount"],
       },
@@ -81,82 +75,49 @@ const RESPONSE_SCHEMA: Schema = {
 export const reconcileDocuments = async (
   bankFile: FileData,
   ledgerFile: FileData,
-  mode: 'fast' | 'precise' = 'precise'
+  mode: 'fast' | 'precise' = 'fast'
 ): Promise<ReconciliationResult> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key not found in environment variables");
-  }
+  if (!apiKey) throw new Error("API Key not found");
 
   const ai = new GoogleGenAI({ apiKey });
-
   const parts: any[] = [];
 
-  // Handle Bank Statement
-  parts.push({ text: "Here is the Bank Statement:" });
+  parts.push({ text: "BANK_DATA:" });
   if (bankFile.type === 'pdf') {
-    const cleanBankBase64 = bankFile.content.replace(/^data:application\/pdf;base64,/, "");
-    parts.push({
-      inlineData: {
-        mimeType: "application/pdf",
-        data: cleanBankBase64,
-      },
-    });
+    parts.push({ inlineData: { mimeType: "application/pdf", data: bankFile.content.replace(/^data:application\/pdf;base64,/, "") } });
   } else {
-    // CSV
     parts.push({ text: bankFile.content });
   }
 
-  // Handle General Ledger
-  parts.push({ text: "Here is the General Ledger:" });
+  parts.push({ text: "LEDGER_DATA:" });
   if (ledgerFile.type === 'pdf') {
-    const cleanLedgerBase64 = ledgerFile.content.replace(/^data:application\/pdf;base64,/, "");
-    parts.push({
-      inlineData: {
-        mimeType: "application/pdf",
-        data: cleanLedgerBase64,
-      },
-    });
+    parts.push({ inlineData: { mimeType: "application/pdf", data: ledgerFile.content.replace(/^data:application\/pdf;base64,/, "") } });
   } else {
-    // CSV
     parts.push({ text: ledgerFile.content });
   }
 
-  parts.push({ text: "Perform the reconciliation based on the system instructions." });
+  // Use gemini-3-flash-preview for high speed. Disable thinking for maximum velocity.
+  const modelName = mode === 'precise' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+  
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: { role: "user", parts: parts },
+    config: {
+      systemInstruction: SYSTEM_INSTRUCTION,
+      responseMimeType: "application/json",
+      responseSchema: RESPONSE_SCHEMA,
+      temperature: 0,
+      thinkingConfig: { thinkingBudget: mode === 'precise' ? 1024 : 0 },
+    },
+  });
 
-  // Select model and config based on mode
-  let modelName = 'gemini-2.5-flash';
-  const config: any = {
-    systemInstruction: SYSTEM_INSTRUCTION,
-    responseMimeType: "application/json",
-    responseSchema: RESPONSE_SCHEMA,
-    temperature: 0.1,
-  };
-
-  if (mode === 'precise') {
-    modelName = 'gemini-3-pro-preview';
-    // Add thinking config for complex reasoning tasks
-    config.thinkingConfig = { thinkingBudget: 4096 };
-  }
-
+  if (!response.text) throw new Error("Empty response from AI engine.");
+  
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: {
-        role: "user",
-        parts: parts,
-      },
-      config: config,
-    });
-
-    const text = response.text;
-    if (!text) {
-      throw new Error("No response from Gemini");
-    }
-
-    return JSON.parse(text) as ReconciliationResult;
-  } catch (error) {
-    console.error("Reconciliation failed:", error);
-    throw error;
+    return JSON.parse(response.text) as ReconciliationResult;
+  } catch (e) {
+    console.error("Failed to parse JSON response:", response.text);
+    throw new Error("AI returned invalid format. Please retry.");
   }
 };

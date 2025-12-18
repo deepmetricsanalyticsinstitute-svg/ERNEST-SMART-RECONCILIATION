@@ -1,195 +1,186 @@
 import React, { useState, useMemo } from 'react';
 import { ReconciliationResult, ReconciledMatch, Transaction } from '../types';
 import { Icons } from './Icons';
+import { ChevronDown } from 'lucide-react';
 
 interface TransactionsTableProps {
   data: ReconciliationResult;
 }
 
-type TabType = 'matches' | 'unmatched_bank' | 'unmatched_gl';
+const GH_CURRENCY = "GH¢";
 
 export const TransactionsTable: React.FC<TransactionsTableProps> = ({ data }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('matches');
-  const [filters, setFilters] = useState({
-    description: '',
-    date: '',
-    amount: ''
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  const formatValue = (val: number, colorClass: string) => {
+    const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+    return <span className={`font-bold ${colorClass}`}>{GH_CURRENCY}{formatted}</span>;
   };
 
-  const clearFilters = () => {
-    setFilters({ description: '', date: '', amount: '' });
-  };
+  const filteredMatches = useMemo(() => {
+    return data.matches.filter(m => 
+      m.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.date.includes(searchTerm) ||
+      m.amount.toString().includes(searchTerm)
+    );
+  }, [data.matches, searchTerm]);
 
-  const filteredData = useMemo(() => {
-    let sourceData: any[] = [];
-    if (activeTab === 'matches') sourceData = data.matches;
-    else if (activeTab === 'unmatched_bank') sourceData = data.unmatchedBank;
-    else sourceData = data.unmatchedLedger;
+  const filteredBankUnmatched = useMemo(() => {
+    return data.unmatchedBank.filter(m => 
+      m.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.date.includes(searchTerm) ||
+      m.amount.toString().includes(searchTerm)
+    );
+  }, [data.unmatchedBank, searchTerm]);
 
-    return sourceData.filter((item) => {
-      // Description Filter (checks description, notes, refs)
-      const searchTerm = filters.description.toLowerCase();
-      const descriptionMatch = 
-        item.description.toLowerCase().includes(searchTerm) ||
-        (item.notes && item.notes.toLowerCase().includes(searchTerm)) ||
-        (item.ref && item.ref.toLowerCase().includes(searchTerm)) ||
-        (item.bankRef && item.bankRef.toLowerCase().includes(searchTerm)) ||
-        (item.ledgerRef && item.ledgerRef.toLowerCase().includes(searchTerm));
+  const filteredLedgerUnmatched = useMemo(() => {
+    return data.unmatchedLedger.filter(m => 
+      m.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.date.includes(searchTerm) ||
+      m.amount.toString().includes(searchTerm)
+    );
+  }, [data.unmatchedLedger, searchTerm]);
 
-      // Date Filter
-      const dateMatch = item.date.includes(filters.date);
-
-      // Amount Filter (strips commas from filter input for flexibility)
-      const amountFilterClean = filters.amount.replace(/,/g, '');
-      const amountMatch = amountFilterClean === '' || item.amount.toString().includes(amountFilterClean);
-
-      return descriptionMatch && dateMatch && amountMatch;
-    });
-  }, [data, activeTab, filters]);
+  const showMatches = statusFilter === 'all' || statusFilter === 'matched';
+  const showBankUnmatched = statusFilter === 'all' || statusFilter === 'unmatched_bank';
+  const showLedgerUnmatched = statusFilter === 'all' || statusFilter === 'unmatched_ledger';
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200 bg-slate-50/50">
-        <button
-          onClick={() => setActiveTab('matches')}
-          className={`flex-1 py-4 px-6 text-sm font-medium transition-colors flex items-center justify-center gap-2
-            ${activeTab === 'matches' ? 'bg-white text-brand-600 border-t-2 border-t-brand-500' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}
-          `}
-        >
-          <Icons.Check size={16} />
-          Matches ({data.matches.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('unmatched_bank')}
-          className={`flex-1 py-4 px-6 text-sm font-medium transition-colors flex items-center justify-center gap-2
-            ${activeTab === 'unmatched_bank' ? 'bg-white text-red-600 border-t-2 border-t-red-500' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}
-          `}
-        >
-          <Icons.Alert size={16} />
-          Unmatched Bank ({data.unmatchedBank.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('unmatched_gl')}
-          className={`flex-1 py-4 px-6 text-sm font-medium transition-colors flex items-center justify-center gap-2
-            ${activeTab === 'unmatched_gl' ? 'bg-white text-amber-600 border-t-2 border-t-amber-500' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}
-          `}
-        >
-          <Icons.Alert size={16} />
-          Unmatched GL ({data.unmatchedLedger.length})
-        </button>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row gap-3 md:items-center">
-        <div className="flex-1 relative">
-          <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+    <div className="space-y-6">
+      {/* Search and Filter Bar */}
+      <div className="flex flex-col md:flex-row gap-4 items-center mb-8">
+        <div className="flex-1 relative w-full">
+          <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input 
             type="text" 
-            placeholder="Search description, reference, notes..." 
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all placeholder:text-slate-400"
-            value={filters.description}
-            onChange={(e) => setFilters({ ...filters, description: e.target.value })}
+            placeholder="Search description, date, or amount..." 
+            className="w-full pl-10 pr-4 py-2 bg-[#1e293b]/40 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder:text-slate-600"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
-        <div className="flex gap-3">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Status:</span>
           <div className="relative">
-             <input 
-              type="text" 
-              placeholder="Filter Date" 
-              className="w-full md:w-40 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all placeholder:text-slate-400"
-              value={filters.date}
-              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-            />
-          </div>
-          <div className="relative">
-             <input 
-              type="text" 
-              placeholder="Filter Amount" 
-              className="w-full md:w-40 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all placeholder:text-slate-400"
-              value={filters.amount}
-              onChange={(e) => setFilters({ ...filters, amount: e.target.value })}
-            />
+            <select 
+              className="appearance-none bg-[#1e293b]/40 border border-slate-700 rounded-lg pl-4 pr-10 py-2 text-xs text-white font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Items</option>
+              <option value="matched">Matched</option>
+              <option value="unmatched_bank">Unmatched Bank</option>
+              <option value="unmatched_ledger">Unmatched Ledger</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={14} />
           </div>
         </div>
-
-        {(filters.description || filters.date || filters.amount) && (
-          <button 
-            onClick={clearFilters}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-red-600 transition-colors px-2 py-1"
-          >
-            <Icons.Close size={16} />
-            <span className="hidden md:inline">Clear</span>
-          </button>
-        )}
       </div>
 
-      {/* Table Content */}
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase text-slate-500 font-semibold tracking-wider">
-              <th className="px-6 py-4">Date</th>
-              <th className="px-6 py-4">Description</th>
-              <th className="px-6 py-4 text-right">Amount</th>
-              {activeTab === 'matches' && <th className="px-6 py-4">Notes</th>}
-              {activeTab !== 'matches' && <th className="px-6 py-4">Ref</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {activeTab === 'matches' && (filteredData as ReconciledMatch[]).map((item, idx) => (
-              <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{item.date}</td>
-                <td className="px-6 py-4 text-sm text-slate-800 font-medium">{item.description}</td>
-                <td className="px-6 py-4 text-sm text-right font-mono text-slate-700">{formatCurrency(item.amount)}</td>
-                <td className="px-6 py-4 text-xs text-slate-500 italic max-w-xs">{item.notes || 'Exact match'}</td>
-              </tr>
-            ))}
-
-            {activeTab === 'unmatched_bank' && (filteredData as Transaction[]).map((item, idx) => (
-              <tr key={idx} className="hover:bg-red-50/30 transition-colors group">
-                <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{item.date}</td>
-                <td className="px-6 py-4 text-sm text-slate-800 font-medium flex items-center gap-2">
-                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>
-                   {item.description}
-                </td>
-                <td className="px-6 py-4 text-sm text-right font-mono text-red-600 font-medium">{formatCurrency(item.amount)}</td>
-                <td className="px-6 py-4 text-xs text-slate-400 font-mono">{item.ref || '-'}</td>
-              </tr>
-            ))}
-
-            {activeTab === 'unmatched_gl' && (filteredData as Transaction[]).map((item, idx) => (
-              <tr key={idx} className="hover:bg-amber-50/30 transition-colors">
-                <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{item.date}</td>
-                <td className="px-6 py-4 text-sm text-slate-800 font-medium flex items-center gap-2">
-                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                   {item.description}
-                </td>
-                <td className="px-6 py-4 text-sm text-right font-mono text-amber-600 font-medium">{formatCurrency(item.amount)}</td>
-                <td className="px-6 py-4 text-xs text-slate-400 font-mono">{item.ref || '-'}</td>
-              </tr>
-            ))}
-            
-            {/* Empty States */}
-            {filteredData.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-12 text-center text-slate-400 flex flex-col items-center justify-center w-full">
-                    <Icons.Search size={48} className="text-slate-200 mb-2" />
-                    <p>No transactions found matching your filters.</p>
-                  </td>
+      {/* Matched Transactions Section */}
+      {showMatches && (
+        <div className="bg-[#1e293b]/10 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-3 border-b border-slate-800 bg-[#1e293b]/20">
+            <ChevronDown size={16} className="text-green-500" />
+            <h3 className="text-sm font-bold text-green-500 uppercase tracking-widest">Matched Transactions ({data.matches.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] text-slate-500 font-bold uppercase border-b border-slate-800">
+                  <th className="px-6 py-4">Bank Date</th>
+                  <th className="px-6 py-4">Bank Description</th>
+                  <th className="px-6 py-4">Ledger Date</th>
+                  <th className="px-6 py-4">Ledger Description</th>
+                  <th className="px-6 py-4 text-right">Amount</th>
                 </tr>
-            )}
-            {filteredData.length > 0 && activeTab === 'matches' && filteredData.length === 0 && (
-                <tr><td colSpan={4} className="p-8 text-center text-slate-400">No matches found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {filteredMatches.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="px-6 py-4 text-xs text-white font-bold">{item.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-400">{item.description}</td>
+                    <td className="px-6 py-4 text-xs text-white font-bold">{item.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-400">{item.description}</td>
+                    <td className="px-6 py-4 text-xs text-right">{formatValue(item.amount, 'text-green-500')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Unmatched Bank Transactions Section */}
+      {showBankUnmatched && (
+        <div className="bg-[#1e293b]/10 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-3 border-b border-slate-800 bg-[#1e293b]/20">
+            <h3 className="text-sm font-bold text-orange-500 uppercase tracking-widest">Unmatched Bank Transactions ({data.unmatchedBank.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] text-slate-500 font-bold uppercase border-b border-slate-800">
+                  <th className="px-6 py-4 w-12">
+                    <input type="checkbox" className="rounded border-slate-700 bg-slate-800 checked:bg-indigo-600 focus:ring-indigo-500" readOnly />
+                  </th>
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4">Description</th>
+                  <th className="px-6 py-4 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {filteredBankUnmatched.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="px-6 py-4">
+                      <input type="checkbox" className="rounded border-slate-700 bg-slate-800 checked:bg-indigo-600 focus:ring-indigo-500" readOnly />
+                    </td>
+                    <td className="px-6 py-4 text-xs text-white font-bold">{item.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-400">{item.description}</td>
+                    <td className="px-6 py-4 text-xs text-right">{formatValue(item.amount, 'text-orange-500')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Unmatched Ledger Entries Section */}
+      {showLedgerUnmatched && (
+        <div className="bg-[#1e293b]/10 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-3 border-b border-slate-800 bg-[#1e293b]/20">
+            <h3 className="text-sm font-bold text-amber-500 uppercase tracking-widest">Unmatched Ledger Entries ({data.unmatchedLedger.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] text-slate-500 font-bold uppercase border-b border-slate-800">
+                  <th className="px-6 py-4 w-12">
+                    <input type="checkbox" className="rounded border-slate-700 bg-slate-800 checked:bg-indigo-600 focus:ring-indigo-500" readOnly />
+                  </th>
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4">Description</th>
+                  <th className="px-6 py-4 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {filteredLedgerUnmatched.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="px-6 py-4">
+                      <input type="checkbox" className="rounded border-slate-700 bg-slate-800 checked:bg-indigo-600 focus:ring-indigo-500" readOnly />
+                    </td>
+                    <td className="px-6 py-4 text-xs text-white font-bold">{item.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-400">{item.description}</td>
+                    <td className="px-6 py-4 text-xs text-right">{formatValue(item.amount, 'text-amber-500')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -5,26 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ERNEST SMART RECONCILIATION</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
             },
             colors: {
-              brand: {
-                50: '#eff6ff',
-                100: '#dbeafe',
-                200: '#bfdbfe',
-                300: '#93c5fd',
-                400: '#60a5fa',
-                500: '#3b82f6',
-                600: '#2563eb',
-                700: '#1d4ed8',
-                800: '#1e40af',
-                900: '#1e3a8a',
+              // We will drive colors via CSS variables for themes
+              theme: {
+                bg: 'var(--bg-main)',
+                card: 'var(--bg-card)',
+                accent: 'var(--accent)',
+                'accent-hover': 'var(--accent-hover)',
+                text: 'var(--text-main)',
+                dim: 'var(--text-dim)',
               }
             }
           },
@@ -32,28 +30,99 @@
       }
     </script>
     <style>
+      /* Theme Definitions */
+      :root {
+        /* Default: Midnight (Dark Indigo) */
+        --bg-main: #030712;
+        --bg-card: #0f172a;
+        --bg-grid: rgba(30, 41, 59, 0.3);
+        --accent: #4f46e5; /* indigo-600 */
+        --accent-hover: #6366f1; /* indigo-500 */
+        --text-main: #ffffff;
+        --text-dim: #94a3b8;
+        --border: rgba(30, 41, 59, 0.8);
+      }
+
+      .theme-arctic {
+        --bg-main: #f8fafc;
+        --bg-card: #ffffff;
+        --bg-grid: rgba(148, 163, 184, 0.1);
+        --accent: #2563eb; /* blue-600 */
+        --accent-hover: #3b82f6;
+        --text-main: #0f172a;
+        --text-dim: #64748b;
+        --border: #e2e8f0;
+      }
+
+      .theme-emerald {
+        --bg-main: #020617;
+        --bg-card: #064e3b;
+        --bg-grid: rgba(16, 185, 129, 0.05);
+        --accent: #10b981; /* emerald-500 */
+        --accent-hover: #34d399;
+        --text-main: #ecfdf5;
+        --text-dim: #a7f3d0;
+        --border: rgba(6, 78, 59, 0.5);
+      }
+
+      .theme-monochrome {
+        --bg-main: #000000;
+        --bg-card: #111111;
+        --bg-grid: rgba(255, 255, 255, 0.05);
+        --accent: #ffffff;
+        --accent-hover: #e5e5e5;
+        --text-main: #ffffff;
+        --text-dim: #a3a3a3;
+        --border: #262626;
+      }
+
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f8fafc;
+        background-color: var(--bg-main);
+        background-image: 
+          linear-gradient(var(--bg-grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+        background-size: 20px 20px;
+        color: var(--text-main);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        min-height: 100vh;
       }
-      /* Custom scrollbar for tables */
+
+      /* Transitions for smooth theme switching */
+      * {
+        transition: background-color 0.4s ease, border-color 0.4s ease, color 0.2s ease;
+      }
+
+      /* Custom scrollbar */
       .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
       }
       .custom-scrollbar::-webkit-scrollbar-track {
-        background: #f1f5f9;
+        background: transparent;
       }
       .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 3px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+        background: var(--text-dim);
+        border-radius: 4px;
+        border: 2px solid var(--bg-main);
       }
     </style>
-  </head>
-  <body>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.2"
+  }
+}
+</script>
+</head>
+  <body class="theme-midnight">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

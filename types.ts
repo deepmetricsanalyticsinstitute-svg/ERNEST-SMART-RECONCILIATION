@@ -12,7 +12,7 @@ export interface ReconciledMatch {
   amount: number;
   bankRef?: string;
   ledgerRef?: string;
-  matchConfidence: number; // 0-1
+  matchConfidence: number;
   notes: string;
 }
 
@@ -21,6 +21,11 @@ export interface ReconciliationSummary {
   totalUnmatchedBank: number;
   totalUnmatchedLedger: number;
   netDiscrepancy: number;
+  matchedAmount: number;
+  unmatchedBankAmount: number;
+  unmatchedLedgerAmount: number;
+  bankStatementBalance?: number;
+  ledgerBalance?: number;
 }
 
 export interface ReconciliationResult {
@@ -32,6 +37,6 @@ export interface ReconciliationResult {
 
 export interface FileData {
   file: File;
-  content: string; // Base64 or Text
+  content: string;
   type: 'pdf' | 'csv';
 }
