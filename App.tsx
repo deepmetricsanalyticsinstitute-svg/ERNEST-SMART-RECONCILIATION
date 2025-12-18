@@ -69,7 +69,7 @@ function App() {
       }, 500);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Reconciliation failed. Check connection.");
+      setError(err.message || "Reconciliation failed. Please check your network and configuration.");
       setIsProcessing(false);
     } finally {
       clearInterval(stepInterval);

@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { ReconciliationResult, FileData } from "../types";
 
 const SYSTEM_INSTRUCTION = `
@@ -8,7 +8,7 @@ RECONCILIATION ENGINE: Match Bank vs Ledger.
 3. Be extremely fast: Skip long reasoning, provide direct results.
 `;
 
-const RESPONSE_SCHEMA: Schema = {
+const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     summary: {
@@ -77,47 +77,63 @@ export const reconcileDocuments = async (
   ledgerFile: FileData,
   mode: 'fast' | 'precise' = 'fast'
 ): Promise<ReconciliationResult> => {
+  // Obtain API key from pre-configured environment variable
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key not found");
+  if (!apiKey) {
+    throw new Error("Gemini API Key is not configured in the environment.");
+  }
 
+  // Initialize the AI client for this specific call
   const ai = new GoogleGenAI({ apiKey });
+  
   const parts: any[] = [];
-
   parts.push({ text: "BANK_DATA:" });
   if (bankFile.type === 'pdf') {
-    parts.push({ inlineData: { mimeType: "application/pdf", data: bankFile.content.replace(/^data:application\/pdf;base64,/, "") } });
+    parts.push({ 
+      inlineData: { 
+        mimeType: "application/pdf", 
+        data: bankFile.content.replace(/^data:application\/pdf;base64,/, "") 
+      } 
+    });
   } else {
     parts.push({ text: bankFile.content });
   }
 
   parts.push({ text: "LEDGER_DATA:" });
   if (ledgerFile.type === 'pdf') {
-    parts.push({ inlineData: { mimeType: "application/pdf", data: ledgerFile.content.replace(/^data:application\/pdf;base64,/, "") } });
+    parts.push({ 
+      inlineData: { 
+        mimeType: "application/pdf", 
+        data: ledgerFile.content.replace(/^data:application\/pdf;base64,/, "") 
+      } 
+    });
   } else {
     parts.push({ text: ledgerFile.content });
   }
 
-  // Use gemini-3-flash-preview for high speed. Disable thinking for maximum velocity.
-  const modelName = mode === 'precise' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
-  
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: { role: "user", parts: parts },
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-      temperature: 0,
-      thinkingConfig: { thinkingBudget: mode === 'precise' ? 1024 : 0 },
-    },
-  });
-
-  if (!response.text) throw new Error("Empty response from AI engine.");
+  // Selection of model based on task complexity
+  const model = mode === 'precise' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
   
   try {
-    return JSON.parse(response.text) as ReconciliationResult;
-  } catch (e) {
-    console.error("Failed to parse JSON response:", response.text);
-    throw new Error("AI returned invalid format. Please retry.");
+    const response = await ai.models.generateContent({
+      model,
+      contents: { parts },
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseSchema: RESPONSE_SCHEMA,
+        temperature: 0,
+        // Pro models benefit from thinking budget for complex reconciliation
+        ...(mode === 'precise' && { thinkingConfig: { thinkingBudget: 4000 } })
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("The AI model returned an empty response.");
+    
+    return JSON.parse(text) as ReconciliationResult;
+  } catch (err: any) {
+    console.error("Gemini API Error:", err);
+    throw new Error(err.message || "An error occurred during the reconciliation process.");
   }
 };
